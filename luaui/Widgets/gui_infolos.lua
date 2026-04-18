@@ -73,7 +73,7 @@ local shaderConfig = {
 	TEXX = (Game.mapSizeX/8),
 	TEXY = (Game.mapSizeZ/8),
 	RESOLUTION = 2,
-	EXACT = 1, -- 1 = exact visibility per 8 elmo square (hmap - 1)
+	EXACT = 0, -- 1 = exact visibility per 8 elmo square (hmap - 1)
 }
 ---------------------------------------------------------------------------
 
@@ -81,7 +81,7 @@ local alwaysColor, losColor, radarColor, jamColor, radarColor2 = Spring.GetLosVi
 local outputAlpha = 0.07
 local numFastUpdates = 10	 -- how many quick updates to do on large-scale changes
 local updateRate = 2 -- on each Nth frame
-local updateInfoLOSTexture = 0 -- how many updates to do on next draw
+local updateInfoLOSTexture = 0 -- how many updates to do on next draw//not sure?
 local delay = 1
 
 local infoShader
@@ -89,8 +89,16 @@ local infoTextures = {} -- A table of allyteam/texture mappings
 local currentAllyTeam = nil
 
 local texX, texY
-local LuaShader = gl.LuaShader
+local LuaShader = nil
+if VFS.FileExists("LuaUI/Include/LuaShader.lua") then
+	LuaShader = VFS.Include("LuaUI/Include/LuaShader.lua")
+elseif gl and gl.LuaShader then
+	LuaShader = gl.LuaShader
+end
 local InstanceVBOTable = gl.InstanceVBOTable
+
+--local vsSrcPath = "LuaUI/Widgets/Shaders/infolos.vert.glsl"
+--local fsSrcPath = "LuaUI/Widgets/Shaders/infolos.frag.glsl"
 
 local fullScreenQuadVAO = nil
 
