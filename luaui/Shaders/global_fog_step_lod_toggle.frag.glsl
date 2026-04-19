@@ -384,7 +384,23 @@ float frequency;
 			return -1.0;
 		}
 	}
+	float losMaskAtWorldPos(vec3 worldPos)
+{
+	vec2 losUV = clamp(worldPos.xz, vec2(0.0), mapSize.xy) / mapSize.xy;
+	vec4 infoTexSample = texture(infoTex, losUV);
 
+	// même rampe que LOSREDUCEFOG pour matcher visuellement
+	return clamp((infoTexSample.r - 0.2) / 0.70, 0.0, 1.0);
+}
+
+float radarMaskAtWorldPos(vec3 worldPos)
+{
+	vec2 losUV = clamp(worldPos.xz, vec2(0.0), mapSize.xy) / mapSize.xy;
+	vec4 infoTexSample = texture(infoTex, losUV);
+
+	// bleu = radar coverage smooth venant de l'Infolos API
+	return clamp((infoTexSample.b - 0.2) / 0.80, 0.0, 1.0);
+}
 
 	// UNUSED fast, filthy 2D random function. Not good for much
 	float rand(vec2 co){
@@ -2179,58 +2195,55 @@ outColor.rgb = mix(outColor.rgb, distanceFogColor.rgb, distanceFogAmountAlpha);
 float finalHorizon = HorizonViewFactor(distanceCamToMapNormLocal);
 outColor.rgb = mix(outColor.rgb, distanceFogColor.rgb * 1.03, finalHorizon * 0.08);
 
-	vec3 losWorldPos = trueMapWorldPos;
+		vec3 losWorldPos = trueMapWorldPos;
 	bool losPosValid =
 		losWorldPos.x >= 0.0 && losWorldPos.x <= mapSize.x &&
 		losWorldPos.z >= 0.0 && losWorldPos.z <= mapSize.y;
 
 	float losLevel = -1.0;
-	float losCoverage = 0.0;
-	float radarCoverage = 0.0;
+	float losMask = 0.0;
+	float radarMask = 0.0;
 
 	if (losPosValid) {
 		losWorldPos.x = clamp(losWorldPos.x, 0.0, mapSize.x);
 		losWorldPos.z = clamp(losWorldPos.z, 0.0, mapSize.y);
 
+		// garde le comportement actuel de LOSREDUCEFOG
 		losLevel = losLevelAtWorldPos(losWorldPos);
-		if (losLevel >= 0.0) {
-			losCoverage = 1.0;
-		}
 
-		radarCoverage = radarCoverageAtWorldPos(losWorldPos);
+		// nouveaux masques doux issus du InfoLOS smoothed texture
+		losMask = losMaskAtWorldPos(losWorldPos);
+		radarMask = radarMaskAtWorldPos(losWorldPos);
 	}
 
-	float radarOnlyCoverage = radarCoverage;
-	if (losCoverage > 0.5) {
-		radarOnlyCoverage = 0.0;
-	}
+	// radar-only doux
+	float radarOnlyMask = radarMask * (1.0 - losMask);
 
 	float fogMul = 1.0;
 
-	// Existing LOS reduction based on LOS strength
+	// LOSREDUCEFOG existant
 	if (losLevel >= 0.0) {
 		float losReduce = clamp(losLevel, 0.0, 1.0);
 		fogMul *= (1.0 - losReduce);
 	}
 
-	// Extra reduction inside LOS
-	fogMul *= (1.0 - clamp(float(LOSFOGUNDISCOVERED), 0.0, 1.0) * losCoverage);
+	// même look doux que LOSREDUCEFOG
+	fogMul *= (1.0 - clamp(float(LOSFOGUNDISCOVERED), 0.0, 1.0) * losMask);
 
-	// Extra reduction inside radar-only
-	fogMul *= (1.0 - clamp(float(RADARFOGUNDISCOVERED), 0.0, 1.0) * radarOnlyCoverage);
+	// radar smooth au lieu des radarCenters hard
+	fogMul *= (1.0 - clamp(float(RADARFOGUNDISCOVERED), 0.0, 1.0) * radarOnlyMask);
 
 	outColor.a *= clamp(fogMul, 0.0, 1.0);
 
 	fragColor = outColor;
-	
-	#if (FULLALPHA == 1) 
+
+	#if (FULLALPHA == 1)
 		fragColor.a = 1.0;
 	#endif
-	#if (RESOLUTION == 1) // When not using combine shader, we must pre-multiple color with alpha!
+	#if (RESOLUTION == 1)
 		fragColor.rgb *= fragColor.a;
 	#endif
-	
-	//printf(fragColor.rgba);
+
 	return;
 
 

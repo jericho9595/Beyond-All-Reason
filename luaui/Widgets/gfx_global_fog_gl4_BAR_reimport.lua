@@ -17,6 +17,95 @@ local GL_RGBA32F_ARB = 0x8814
 local GL_R32F = 0x822E
 
 --------------------------------------------------------------------------------
+-- TODO: 2022.11.30
+-- Expose fog params via uniforms:
+	-- Fog Color
+	-- Global Fog density
+	-- Fog Plane Height
+	-- Height-based fog density
+-- Pre optimization at full screen on Colorado is 190 -> 120fps, after 190->150fps
+-- DONE: Fix mixing of shadow marching and noise sampling, with conditional shadow marching
+-- Fix colorization based on sun angle
+-- DONE: Use a spherical harmonics equation for this?
+-- DONE: Fix colorization of height based and distance based fog
+-- DONE Use non constant density fog (maybe exponential is better?) (using linear at the moment)
+-- Create a better noise texture (also use this for other occasions!)
+-- DONE: Expose params to be easily tunable
+-- Create quality 'presets' and auto apply them?//done
+-- DONE: better LOS shader usage?
+-- DONE: minimap color backscatter
+-- DONE: Fix blending of shadowed and non-shadowed
+-- DONE handle out-of-map better!//done
+-- DONE: Fix non raytraced fog nonlinearity
+-- TODO: Make it also be clouds//what u mean?
+-- TODO: handle pullback of min(mapdepth, modeldepth); better than now.
+-- TODO: Volumetric "water shadow scattering" pass
+-- TODO: Reflections shader
+-- TODO: HDR blending
+-- VERY IMPORTANT NOTES:
+-- WHEN NOT USING RAYTRACING, SET FOG RESOLUTION TO 1!!!!!!!!!
+-- TODO: Switch to premultiplied alpha, which is needed for proper raymarchcing compositing:
+	-- https://lightrun.com/answers/mrdoob-three-js-incorrect-brightness-when-gl_fragcolor-is-semi-transparent
+	-- So gl.Blending(GL.ONE, GL.ONE_MINUS_SRC_ALPHA) -- GL.ONE instead of GL.SRC_ALPHA
+	-- Which means that the final, compositing fragment output needs its fragColor.rgb = fragColor.rgb * fragColor.a
+
+
+-- Most fucked up idea ever:
+	-- a simple 2d texture lookup is _still_ faster than a fucking noise gen, even the cheapest goddamned FBM noise too
+	-- ping-pong between two textures every gameframe, and render all units into that. What should the texture contain?
+	-- Well it should always read the first ping, to be able to decay it
+	-- red and blue contain XY offset of all unit's triggered noise swirl shit
+	-- green could contain the 'height' of the turbulence
+	
+	-- 
+	-- Alpha of it should contain like a global noise offset, which should blow with the wind, but contain some underlying moderate frequency noise
+
+-- Performance Notes 2023.10.13
+	-- Combine Shader eats .35 ms in rez == 2 mode, but only 100 ms in rez >= 3
+	-- Total cost at rez = 2 is like 2.4 ms, broken down into:
+		-- combine shader 0.35ms
+		-- clouds 0.85ms
+		-- cloud shadows 0.45ms
+		-- uw shadows 0.10 ms
+		-- height fog 0.2 ms
+		-- rest of the shit 0.4 ms
+		-- VGPR Pressure according to RGA tool is 48. This did require some finagling:
+			-- layout(binding = 4) uniform sampler2D modelDepths;
+			-- layout(set=0, binding = 15) uniform TheBlock{
+				-- uniform float windX;
+				-- 
+
+-- TODO 20250822
+	-- [x] RMLUI Sliders are 1 update late always //jlm-seem to cause lag otherwise when recompiling 
+	-- [ ] Combine shader sample neighbour texels with texelgather
+	-- [x] Fix map edge extension
+	-- [x] Add uniform sliders 
+	-- [x] Better grouping for individual effects:
+		-- Global
+		-- Ground fog + self-shadowing
+		-- Height Fog 
+		-- Underwater shadow absorbtion 
+		-- Cloud layer 
+		-- Cloud shadows 
+		-- Distance fog 
+		-- ScavCloud
+	-- [ ] Better control over defines vs uniforms
+	-- [ ] Add save and load config buttons //jlm donee
+		-- [ ] Load does not load ... //jlm fix
+	-- [ ] Try to add tooltips? for the slider? there are
+	-- [x] Minimize the rml window
+	-- [ ] Prep all work for correct blending order to the compositing pass 
+	-- [ ] Add dynamic api to control params
+	-- [ ] Fix wind noise looping //should not be looping? what would be the alternative
+	-- [ ] Bottom / top of cloud layer too sharp when viewed horizontally //not sure what u mean by sharp
+	-- [x] Spacing of sliders is too much
+
+
+
+------------- Literature and Reading: ---
+-- blue noise sampling:  https://blog.demofox.org/2020/05/10/ray-marching-fog-with-blue-noise/
+-- Inigo quliez fog lighting tips: https://iquilezles.org/articles/fog/
+-- Analyitic fog density: https://blog.demofox.org/2014/06/22/analytic-fog-density/
 --------------------------------------------------------------------------------
 
 local vsx, vsy = Spring.GetViewGeometry()
@@ -98,8 +187,6 @@ local function CheckShader(srccache, oldShader)
 	return oldShader
 end
 
--- BAR import: restore the old GL VBO path first and stop depending on
--- the fog-specific forked instancevbotable include.
 local InstanceVBOTable = (gl and gl.InstanceVBOTable) or nil
 local makePlaneVBO = nil
 local makePlaneIndexVBO = nil
@@ -403,10 +490,6 @@ local shadowMinifierShaderSourceCache = {
 	shaderName = "shadowMinifierShader",
 	shaderConfig = { VSX = vsx, VSY = vsy, HSX = hsx, HSY = hsy }
 }
-
---------------------------------------------------------------------------------
--- config save/load helpers
---------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 -- config save/load helpers

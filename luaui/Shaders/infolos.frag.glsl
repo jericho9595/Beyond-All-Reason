@@ -170,10 +170,10 @@ vec2 blur5RG(sampler2D tex, vec2 uv, vec2 texSize, float radiusPx)
 
 void main() {
 	fragColor = vec4(0.0);
-
+	//outline blur of los etc , look more like the engine losview
 	#if (EXACT == 0)
-		const float BLUR_RADIUS = 0.85;
-		const float LOS_BLUR_MIX = 0.35;
+		const float BLUR_RADIUS = 0.75;
+		const float LOS_BLUR_MIX = 0.5;
 		const float AIRLOS_BLUR_MIX = 0.30;
 		const float RADAR_BLUR_MIX = 0.25;
 

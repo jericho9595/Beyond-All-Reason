@@ -97,9 +97,6 @@ elseif gl and gl.LuaShader then
 end
 local InstanceVBOTable = gl.InstanceVBOTable
 
---local vsSrcPath = "LuaUI/Widgets/Shaders/infolos.vert.glsl"
---local fsSrcPath = "LuaUI/Widgets/Shaders/infolos.frag.glsl"
-
 local fullScreenQuadVAO = nil
 
 local vsSrcPath = "LuaUI/Shaders/infolos.vert.glsl"
